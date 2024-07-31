@@ -23,7 +23,8 @@ for message in st.session_state.stream:
     st.chat_message(name=message["role"]).markdown(message["content"])
 
 if prompt := st.chat_input("What's up?"):
-    st.chat_message("user").markdown(prompt)
+    with st.chat_message("user"):
+        st.markdown(prompt)
     st.session_state.stream.append({"role": "user", "content": prompt})
     with st.chat_message("assistant"):
         response = st.write_stream(response_gen())
