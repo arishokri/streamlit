@@ -3,25 +3,14 @@ from langchain_openai.chat_models import ChatOpenAI
 
 st.title("🦜🔗 Langchain App")
 
-openai_api_key = st.secrets.openai_api_key
+openai_api_key = st.secrets.OPENAI_API_KEY
 
 
 def generate_response(input_text):
-    model = ChatOpenAI(temperature=0.7, api_key=openai_api_key)
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0.7, api_key=openai_api_key)
     # st.info(model.invoke(input_text).content)
     return model.invoke(input_text).content
 
-
-# with st.form("my_form"):
-#     text = st.text_area(
-#         "Enter text:",
-#         "What are the three key pieces of advice for learning how to code?",
-#     )
-#     submitted = st.form_submit_button("Submit")
-#     if not openai_api_key.startswith("sk-"):
-#         st.warning("Please enter your OpenAI API key!", icon="⚠")
-#     if submitted and openai_api_key.startswith("sk-"):
-#         generate_response(text)
 
 if "message_history" not in st.session_state:
     st.session_state.message_history = []
