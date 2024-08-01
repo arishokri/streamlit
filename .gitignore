@@ -1,5 +1,6 @@
-__pychache__/
+__pycache__/
 .DS_Store
+.env
 *.code-workspace
 articles/
 logs/

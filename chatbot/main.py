@@ -7,7 +7,8 @@ pg = st.navigation(
     [
         st.Page("mirror.py", title="Mirror Bot", icon=":material/self_care:"),
         st.Page("stream.py", title="Stream Bot", icon=":material/cast:"),
-        st.Page("langchain_bot.py", title="Langchain", icon=":material/link:"),
+        st.Page("langchain_bot.py", title="Langchain", icon="🦜"),
+        st.Page("langflow_python.py", title="Langflow", icon="⛓️")
     ]
 )
 pg.run()
