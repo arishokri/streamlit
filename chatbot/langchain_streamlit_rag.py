@@ -1,4 +1,5 @@
 import bs4
+import os
 import streamlit as st
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
@@ -6,14 +7,31 @@ from langchain_chroma import Chroma
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_core.chat_history import BaseChatMessageHistory
+from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables import RunnableGenerator
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-openai_api_key = st.secrets["OPENAI_API_KEY"]
+os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+os.environ["LANGCHAIN_TRACING_V2"] = st.secrets["LANGCHAIN_TRACING_V2"]
+os.environ["LANGCHAIN_API_KEY"] = st.secrets["LANGCHAIN_API_KEY"]
+
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.1)
+
+with st.sidebar.form(key="links_form", clear_on_submit=True):
+    links = st.text_area(
+        label="URLs",
+        value="Insert web URLs you want to import here. Separate URLs by comma.",
+    )
+    submit = st.form_submit_button(label="Submit")
+    if submit:
+        st.session_state.links = links
+
+if "links" in st.session_state:
+    links = [link for link in st.session_state.links.strip().split(",")]
+    for link in links:
+        st.sidebar.markdown(link)
 
 ### Construct retriever ###
 loader = WebBaseLoader(
@@ -49,8 +67,6 @@ contextualize_q_prompt = ChatPromptTemplate.from_messages(
 history_aware_retriever = create_history_aware_retriever(
     llm, retriever, contextualize_q_prompt
 )
-
-
 ### Answer question ###
 system_prompt = (
     "You are an assistant for question-answering tasks. "
@@ -74,12 +90,11 @@ rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chai
 
 
 ### Statefully manage chat history ###
-store = {}
-
 def get_session_history() -> BaseChatMessageHistory:
     if "chat_memory" not in st.session_state:
         st.session_state.chat_memory = ChatMessageHistory()
     return st.session_state.chat_memory
+
 
 conversational_rag_chain = RunnableWithMessageHistory(
     rag_chain,
@@ -89,24 +104,21 @@ conversational_rag_chain = RunnableWithMessageHistory(
     output_messages_key="answer",
 )
 
-def generate_response(prompt):
-    # conversational_rag_chain.stream({"input": prompt})
-    for chunk in conversational_rag_chain.invoke(
-        {"input": prompt}
-    )["answer"]:
-        yield chunk
 
-# response = conversational_rag_chain.invoke(
-#     {"input": "What is Task Decomposition?"},
-#     config={
-#         "configurable": {"session_id": "a11111"}
-#     },  # constructs a key "abc123" in `store`.
-# )["answer"]
+def generate_response(prompt):
+    return conversational_rag_chain.pick("answer").stream({"input": prompt})
+
+
+for message in st.session_state.chat_memory.messages:
+    st.chat_message(
+        message.type,
+        avatar=(
+            "👩‍💼"
+            if message.type == "human"
+            else "🤖" if message.type == "ai" else None
+        ),
+    ).markdown(message.content)
 
 if prompt := st.chat_input("What's up?"):
-    with st.chat_message("human"):
-        st.markdown(prompt)
-    # st.session_state.message_history.append({"role": "user", "content": prompt})
-    with st.chat_message("ai"):
-        st.write_stream(generate_response(prompt))
-    # st.session_state.message_history.append({"role": "assistant", "content": response})
+    st.chat_message("human", avatar="👩‍💼").markdown(prompt)
+    st.chat_message("ai", avatar="🤖").write_stream(generate_response(prompt))
