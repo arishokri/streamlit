@@ -1,8 +1,7 @@
-__pycache__/
+**/__pycache__/
+**/logs/
+**/dbs/
 .DS_Store
 .env
 *.code-workspace
-articles/
-logs/
-chroma_dbs/
 secrets.toml
