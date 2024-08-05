@@ -1,0 +1,4 @@
+https://lilianweng.github.io/posts/2023-06-23-agent/,
+https://isamu-website.medium.com/literature-review-on-task-planning-with-llm-agents-a5c60ce4f6de,
+https://www.reddit.com/r/MachineLearning/comments/1cdih0a/d_llms_why_does_incontext_learning_work_what/,
+https://betterprogramming.pub/graphql-from-excitement-to-deception-f81f7c95b7cf
