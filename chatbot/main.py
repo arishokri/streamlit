@@ -2,11 +2,16 @@ import streamlit as st
 from langchain_chroma import Chroma
 from langchain_openai import ChatOpenAI
 from langchain_ollama.embeddings import OllamaEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 st.set_page_config(page_title="AI Alchemy", page_icon="⚛️")
 
 st.sidebar.text_input("Consultant Name", placeholder="Joe Smith", key="consultant")
 st.sidebar.text_input("Client Name", placeholder="Microsoft", key="client")
+
+# st.session_state.temperature = (
+#     st.session_state.temperature if "temperature" in st.session_state else 0.1
+# )
 
 
 def set_llm_embedding():  # Sets llm models as session_state to be used across the app.
@@ -23,6 +28,13 @@ def set_vector_store(embedding_func):
             collection_name=st.session_state.client,
             persist_directory="dbs/",
             embedding_function=embedding_func,
+        )
+
+
+def set_text_splitter(chunk_size=1000, chunk_overlap=200):
+    if "text_splitter" not in st.session_state:
+        st.session_state.text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size, chunk_overlap=chunk_overlap
         )
 
 
@@ -59,4 +71,6 @@ pg = st.navigation(
 if check_project_params():
     set_llm_embedding()
     set_vector_store(embedding_func=st.session_state.embedding)
+    set_text_splitter(chunk_size=1000, chunk_overlap=200)
     pg.run()
+

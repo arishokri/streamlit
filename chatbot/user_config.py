@@ -1,14 +1,27 @@
 import streamlit as st
 from pydantic import HttpUrl, ValidationError
-from langchain_openai import OpenAIEmbeddings
 from langchain_community.document_loaders import WebBaseLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyMuPDFLoader
+from langchain_community.document_loaders.parsers import PyMuPDFParser, PyPDFParser
+from langchain_community.document_loaders.blob_loaders import Blob
 
 if "links" not in st.session_state:
     st.session_state.links = []
 
+if "uploader_key" not in st.session_state:
+    st.session_state.uploader_key = 0  # The state for uploader cannot be set directly. This is a workaround to reset this state value.
+
+st.write(f"links are: {st.session_state.links}")
+st.write(f"uploader key is: {st.session_state.uploader_key}")
 ### Functions for validating links and files to state.
+
+# st.slider(
+#     label="Temperature value:",
+#     value=0.1,
+#     min_value=0.0,
+#     max_value=1.0,
+#     key="temperature",
+#     help="This value controls the creativity of our model. The lower values result in more consistant responses while higher values encourage variety and creativity.",
+# )
 
 
 def validate_link(url):
@@ -34,72 +47,111 @@ def create_links_list():
     for error in errors_list:
         st.error(error)
 
+def split_and_store(
+    docs,
+    text_splitter=st.session_state.text_splitter,
+    db_collection=st.session_state.vector_db_collection,
+    embedding=st.session_state.embedding,
+    collection_name=st.session_state.client,
+):
+    splits = text_splitter.split_documents(docs)
+    db_collection.from_documents(
+        documents=splits,
+        embedding=embedding,
+        collection_name=collection_name,
+        persist_directory="dbs/",
+    )
+    st.info(body="Documents have been successfully stored in the knowledge base.")
 
-### Getting and storing links and files from the client.
+
+def store_links():
+    db_collection = st.session_state.vector_db_collection
+    # text_splitter = st.session_state.text_splitter
+    if st.session_state.links:
+        web_loader = WebBaseLoader(web_paths=st.session_state.links)
+        docs = web_loader.load()
+        for doc in reversed(docs):
+            if db_collection.get(where={"source": doc.metadata["source"]})[
+                "documents"
+            ]:
+                st.error(
+                    body=f"The following document already exists in database:\n{doc.metadata['source']}"
+                )
+                docs.remove(doc)
+        if docs:
+            # splits = text_splitter.split_documents(docs)
+            # db_collection.from_documents(
+            #     documents=splits,
+            #     embedding=st.session_state.embedding,
+            #     collection_name=st.session_state.client,
+            #     persist_directory="dbs/",
+            # )
+            split_and_store(docs)
+        del st.session_state.links
+    else:
+        st.error(body="No new links were provided.")
+
 
 with st.form(key="links_form", clear_on_submit=True):
     st.text_area(
-        label="Context URLs",
+        label="Insert URLs to import into knowledge base:",
         placeholder="Insert web URLs you want to import here. Separate URLs by comma.",
         key="links_text",
     )
     st.form_submit_button(label="Submit", on_click=create_links_list)
 
 
-st.file_uploader(
-    label="Context Files",
+uploaded_files = st.file_uploader(
+    label="Choose files to import into knowledge base:",
     accept_multiple_files=True,
-    help="Hi I'm here to help.",
-    key="files",
+    key=f"uploader_{st.session_state.uploader_key}",  # Workaround to refreshing the state value after execution.
 )
 
-### Vector Storage
 
 
-def store_links():
-    if st.session_state.links:
-        web_loader = WebBaseLoader(web_paths=st.session_state.links)
-        docs = web_loader.load()
-        for doc in reversed(docs):
-            if st.session_state.vector_db_collection.get(
-                where={"source": doc.metadata["source"]}
-            )["documents"]:
-                st.error(
-                    body=f"The following document already exists in database:\n{doc.metadata['source']}"
-                )
-                docs.remove(doc)
+st.radio(
+    label="Select document parsing method:",
+    options=["default", "tables"],
+    key="pdf_mode",
+    horizontal=False,
+    help="For most use-cases you would want to leave this as default which results in much faster file processing. Only use other options if your document has a significant number of unstructured elements that otherwise are not being picked up by AI. The default parser can process majority of tables and images with great results.",
+)
 
-        if docs:
-            text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=1000, chunk_overlap=200
-            )
-            splits = text_splitter.split_documents(docs)
-            # Find a way to use a persisting db instance instead of rewriting the state object everytime.
-            st.session_state.vector_db_collection.from_documents(
-                documents=splits,
-                embedding=st.session_state.embedding,
-                collection_name=st.session_state.client,
-                persist_directory="dbs/",
-            )
-        del st.session_state.links
-    else:
-        st.error(body="No new links were provided.")
 
 def store_pdfs():
-    return None
-
-def push_to_db():
-    # Chroma.from_documents(
-    #     collection_name=st.session_state.client,
-    #     persist_directory="dbs/",
-    #     embedding=OpenAIEmbeddings(),
-    #     documents=docs,
-    # )
-    return None
+    mode = st.session_state.pdf_mode
+    db_collection = st.session_state.vector_db_collection
+    text_splitter = st.session_state.text_splitter
+    parser = None
+    if mode == "default":
+        parser = PyMuPDFParser()
+    elif mode == "tables":
+        parser = PyPDFParser()
+    else:
+        st.error(body="No valid parsing mode provided.")
+        return None
+    if files := uploaded_files:
+        st.session_state.uploader_key += 1  # Increments the uploader key to remove the uploaded documents from the state.
+        for file in reversed(files):
+            if db_collection.get(where={"source": file.name})["documents"]:
+                st.error(
+                    body=f"The following document already exists in database:\n{file.name}"
+                )
+                files.remove(file)
+        for file in files:
+            st.write(file.name)
+            blob = Blob(data=file.getvalue(), metadata={"source": file.name})
+            docs = parser.parse(blob=blob)
+            splits = text_splitter.split_documents(docs)
+            for split in splits:
+                st.write(split)
+    else:
+        st.error(body="No new files were provided.")
 
 
 st.button(
-    label="Commit new content to knowledge base.",
-    key="commit_to_kb",
-    on_click=store_links,
+    label="Import Files to Knowledge Base",
+    key="import_to_kb",
+    on_click=store_pdfs,
+    help="Click this button once you're finished with inputing all the links and uploading all of your files. You may commit your documents to knowledge base separately and in a number of batches.",
 )
