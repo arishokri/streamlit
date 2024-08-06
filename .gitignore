@@ -1,6 +1,7 @@
 **/__pycache__/
 **/logs/
 **/dbs/
+**/knowledge_base/
 .DS_Store
 .env
 *.code-workspace

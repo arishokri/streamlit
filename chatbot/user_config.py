@@ -3,9 +3,12 @@ from pydantic import HttpUrl, ValidationError
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import PyMuPDFLoader
 
 if "links" not in st.session_state:
     st.session_state.links = []
+
+### Functions for validating links and files to state.
 
 
 def validate_link(url):
@@ -32,6 +35,8 @@ def create_links_list():
         st.error(error)
 
 
+### Getting and storing links and files from the client.
+
 with st.form(key="links_form", clear_on_submit=True):
     st.text_area(
         label="Context URLs",
@@ -41,7 +46,7 @@ with st.form(key="links_form", clear_on_submit=True):
     st.form_submit_button(label="Submit", on_click=create_links_list)
 
 
-files = st.file_uploader(
+st.file_uploader(
     label="Context Files",
     accept_multiple_files=True,
     help="Hi I'm here to help.",
@@ -80,6 +85,8 @@ def store_links():
     else:
         st.error(body="No new links were provided.")
 
+def store_pdfs():
+    return None
 
 def push_to_db():
     # Chroma.from_documents(
@@ -96,5 +103,3 @@ st.button(
     key="commit_to_kb",
     on_click=store_links,
 )
-
-## I need to make push_to_db work for file uploads as well

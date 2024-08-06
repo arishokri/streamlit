@@ -9,11 +9,6 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 
 llm = st.session_state.llm
 
-# vectorstore = Chroma(
-#     collection_name=st.session_state.client,
-#     persist_directory="dbs/",
-#     embedding_function=OpenAIEmbeddings(),
-# )
 retriever = st.session_state.vector_db_collection.as_retriever()
 
 ### Contextualize question ###
